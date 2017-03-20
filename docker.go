@@ -18,16 +18,24 @@
 package main
 
 import (
+  "io"
 	"io/ioutil"
 	"os"
 	"os/exec"
 	"strings"
 
-	"golang.org/x/net/context"
+	//"golang.org/x/net/context"
+  "github.com/docker/docker/vendor/golang.org/x/net/context"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
 )
+
+type dockerClientInf interface {
+  ImageList(ctx context.Context, options types.ImageListOptions) ([]types.ImageSummary, error)
+  ImageLoad(ctx context.Context, input io.Reader, quiet bool) (types.ImageLoadResponse, error)
+  ImageImport(ctx context.Context, source types.ImageImportSource, ref string, options types.ImageImportOptions) (io.ReadCloser, error)
+}
 
 // Figure the API version supported by the server
 // by shelling out.
@@ -45,26 +53,28 @@ func dockerDaemonAPIVersion() (string, error) {
 }
 
 // Connects to the local daemon using the right version of the API
-func connectToDaemon() (*client.Client, error) {
+func connectToDaemon() (client.Client, error) {
 	// Set the exact version of the API in use, otherwise the library will
 	// try to use the latest one, which might be too newer compared to the
 	// one supported by the docker daemon
 
 	apiVersion, err := dockerDaemonAPIVersion()
+  /*
 	if err != nil {
 		return nil, err
 	}
 	if err := os.Setenv("DOCKER_API_VERSION", apiVersion); err != nil {
 		return nil, err
 	}
+  */
 
-	return client.NewEnvClient()
+	return *client.NewEnvClient()
 }
 
 // Returns images available on the docker host
 // The images are stored inside of a list of strings where
 // each string is following this convention: "<repo>:<tag>"
-func existingImages(cli *client.Client) ([]string, error) {
+func existingImages(cli dockerClientInf) ([]string, error) {
 	tags := []string{}
 
 	images, err := cli.ImageList(context.Background(), types.ImageListOptions{})
@@ -83,7 +93,7 @@ func existingImages(cli *client.Client) ([]string, error) {
 
 // Loads the specified image into docker
 // Returns the message produced by the docker daemon
-func loadDockerImage(cli *client.Client, pathToImage string) (string, error) {
+func loadDockerImage(cli dockerClientInf, pathToImage string) (string, error) {
 	image, err := os.Open(pathToImage)
 	if err != nil {
 		return "", err
@@ -104,7 +114,7 @@ func loadDockerImage(cli *client.Client, pathToImage string) (string, error) {
 
 // Import the specified image into docker with repotag
 // Returns the message produced by the docker daemon
-func importDockerImage(cli *client.Client, pathToImage string, repoTag string) (string, error) {
+func importDockerImage(cli dockerClientInf, pathToImage string, repoTag string) (string, error) {
 	image, err := os.Open(pathToImage)
 	if err != nil {
 		return "", err

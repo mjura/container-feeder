@@ -27,7 +27,7 @@ import (
 )
 
 type Feeder struct {
-	dockerClient *client.Client
+	dockerClient client.Client
 }
 
 type FailedImportError struct {
